@@ -88,7 +88,7 @@
     "moment-timezone": "^0.4.1",
     "multiparty": "^4.2.3",
     "mustache": "^2.3.0",
-    "node-fetch": "^2.6.7",
+    "node-fetch": "^3.2.10",
     "node-schedule": "^0.1.16",
     "pg": "^8.5.1",
     "proper-lockfile": "^4.1.2",
