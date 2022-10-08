@@ -1,0 +1,11 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.0
+ignore: {}
+# patches apply the minimum changes required to fix a vulnerability
+patch:
+  'npm:extend:20180424':
+    - turndown > jsdom > request > extend:
+        patched: '2022-10-08T18:03:46.227Z'
+  'npm:stringstream:20180511':
+    - turndown > jsdom > request > stringstream:
+        patched: '2022-10-08T18:03:46.227Z'
