@@ -5,9 +5,14 @@ const debug = require("debug")("blot:blog:assets");
 const { join, basename, dirname } = require("path");
 const LARGEST_POSSIBLE_MAXAGE = 86400000;
 
+const BANNED_ROUTES = ["/.git"];
+
 module.exports = function (req, res, next) {
-  // Not sure if or how this can happen
-  if (!req.path) return next();
+
+  // Skip serving files for banned routes
+  if (BANNED_ROUTES.find((route) => req.path.toLowerCase().startsWith(route))) {
+    return next();
+  }
 
   // We check to see if the requests path
   // matches a file in the following directories
@@ -84,12 +89,11 @@ module.exports = function (req, res, next) {
     };
   });
 
-  async.tryEach(candidates, function (err) {
+  async.tryEach(candidates, function () {
     // Is this still neccessary?
     if (res.headersSent) return;
-
-    // hide the error, keep on going
-    if (err) return next();
+    
+    next();
   });
 };
 
@@ -99,8 +103,7 @@ function addLeadingUnderscore(path) {
 }
 
 function withoutTrailingSlash(path) {
-  if (!path || !path.length) return path;
-  if (path.slice(-1) === "/") return path.slice(0, -1);
+  if (path && path.slice(-1) === "/") return path.slice(0, -1);
   return path;
 }
 

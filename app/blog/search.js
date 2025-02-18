@@ -1,35 +1,22 @@
-module.exports = function (server) {
-  var Entry = require("models/entry");
-  var reds = require("reds");
-  var transliterate = require("transliteration");
+const Entry = require('models/entry');
+const search = require('util').promisify(Entry.search);
 
-  server.get("/search", function (request, response, next) {
-    var blog = request.blog;
-    var blogID = blog.id;
-    var string = request.query.q;
-    var search = reds.createSearch("blog:" + blogID + ":search");
+module.exports = async (req, res, next) => {
 
-    if (string) {
-      search.query(transliterate(string)).end(function (err, ids) {
-        if (err) return next(err);
+  let entries = [];
 
-        for (var i in ids) ids[i] = ids[i];
-
-        Entry.get(blogID, ids, then);
-      });
-    } else {
-      then([]);
+  if (req.query.q) {
+    try {
+      entries = await search(req.blog.id, req.query.q);
+    } catch (err) {
+      return next(err);
     }
+  }  
 
-    function then(entries) {
-      response.addLocals({
-        query: string,
-        entries: entries,
-      });
+  res.locals.query = req.query.q;
+  res.locals.entries = entries || [];
 
-      // Don't cache search results until we
-      response.set("Cache-Control", "no-cache");
-      response.renderView("search.html", next);
-    }
-  });
+  // Don't cache search results
+  res.set("Cache-Control", "no-cache");
+  res.renderView("search.html", next);
 };

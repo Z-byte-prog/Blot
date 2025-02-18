@@ -2,42 +2,49 @@
 
 A blogging platform with no interface. Blot turns a folder into a blog. The point of all this — the reason Blot exists — is so you can use your favorite tools to create whatever you publish.
 
-I recommend waiting until I write a guide before attempting to run Blot on your own server. Eventually I will refactor the code such that Blot can be installed quickly and simply. I will write the neccessary documentation and sell Blot at a reasonable price to self-hosters, with an option to pay more for support. 
-
 Please don’t hesitate to contact me with any questions: [support@blot.im](mailto:support@blot.im)
 
 ## Overview
 
-Here is an illustration of Blot's structure:
+The internet <> NGINX (reverse proxy) <> Blot (express.js node application) <> Redis
 
-```mermaid
-flowchart LR
+## Development setup
 
-%% Variable declarations
-    internet[<h3>The Internet</h3>]
-    nginx(<h3>NGINX</h3><ul><li>SSL termination</li><li>Serves static files</li></ul>)
-    nodeJs(<h3>Node.js Server</h3><i>Blot</i>)
-    redis(<h3>Redis</h3><ul><li>Stores SSL certificates</li><li>Stores all data that can't be on disk for Blot</li></ul>)
 
-%% Relationship between variables (nodes)
-    internet <--> nginx <--> nodeJs
-    nodeJs <--> redis
-    nginx <--> redis
+You will need Docker. 
 
-%% Node styles
-    classDef nodeStyle fill:#FAFAFA,color:#333230,stroke:#333230,stroke-width:2px
+Once you have Docker installed and running, clone the repository:
 
-    class internet,nginx,nodeJs,redis nodeStyle;
+```
+git clone https://github.com/davidmerfield/blot
 ```
 
-The Node.js server (Blot) itself is responsible for a small crew of child processes which handle things like image minification and document conversion. 
+Then start the server:
+
+```
+npm start
+```
+
+Before you begin working on the code, you'll need to open up the following URLs in your browser and add an exception for the self-signed SSL certificates which we've generated:
+
+```
+https://localhost/
+https://cdn.localhost/
+https://example.localhost/
+```
+
+After you've trusted the self-signed certificates, the dashboard will be available at [https://localhost](https://localhost) and the example site will be available at [https://example.localhost](https://example.localhost). You can edit the folder for the example blog inside the `data` directory:
+
+```
+./data/blogs/blog_$ID
+```
 
 ## Inside this folder
 
 ```
 /
 ├── app/
-│	the code for the node.js application which is Blot 
+│	the code for the node.js application which is Blot
 ├── config/
 │	configation for the system utilities which keep redis, NGINX and the node.js processes up
 ├── scripts/

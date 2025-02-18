@@ -25,10 +25,18 @@ module.exports = function (done) {
 
     context.blog = blog;
 
+    context.blog.update = async (updates) => {
+      await promisify(Blog.set)(context.blog.id, updates);
+    };
+
     context.blog.write = async ({ path, content }) => {
       await fs.outputFile(join(context.blogDirectory, path), content);
     };
 
+    context.blog.remove = async (path) => {
+      await fs.remove(join(context.blogDirectory, path));
+    };
+    
     context.blog.rebuild = async (options = {}) =>
       await rebuild(context.blog.id, options);
 

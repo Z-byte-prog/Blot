@@ -16,17 +16,19 @@ var signup = Express.Router();
 var csrf = require("csurf")();
 
 signup.use(function (req, res, next) {
-  if (req.session && req.session.uid) return res.redirect("/dashboard");
+  if (req.session && req.session.uid) return res.redirect("/sites");
 
   res.header("Cache-Control", "no-cache");
-  res.locals.layout = "partials/layout-form";
 
   return next();
 });
 
+signup.use("/paypal", require("./paypal"));
+
 var paymentForm = signup.route("/");
 var alreadyPaid = signup.route("/paid/:token");
 var passwordForm = signup.route("/create-account");
+var firstSite = signup.route("/first-site");
 
 if (config.maintenance) {
   paymentForm.use("/sign-up", function (req, res) {
@@ -42,7 +44,7 @@ alreadyPaid.get(csrf, function (req, res) {
   res.locals.menu = { "sign-up": "selected" };
   res.locals.error = req.query.error;
   res.locals.csrf = req.csrfToken();
-  res.render("sign-up/paid");
+  res.render("dashboard/sign-up/paid");
 });
 
 alreadyPaid.post(parse, csrf, validateEmail, function (req, res, next) {
@@ -60,7 +62,7 @@ alreadyPaid.post(parse, csrf, validateEmail, function (req, res, next) {
   });
 });
 
-function validateEmail(req, res, next) {
+function validateEmail (req, res, next) {
   var email = req.body && req.body.email;
 
   // Normalize the email here before storing it
@@ -79,16 +81,27 @@ function validateEmail(req, res, next) {
   });
 }
 
-paymentForm.get(csrf, function (req, res) {
-  if (req.session && req.session.email && req.session.subscription)
+paymentForm.get(csrf, function (req, res, next) {
+  if (
+    req.session &&
+    req.session.email &&
+    (req.session.subscription || req.session.paypal)
+  )
     return res.redirect(req.baseUrl + passwordForm.path);
+
+  if (!config.stripe.key) {
+    console.error("Warning: Stripe key is not set");
+    return res.redirect('/');
+  }
 
   res.locals.title = "Sign up";
   res.locals.menu = { "sign-up": "selected" };
   res.locals.error = req.query.error;
   res.locals.stripe_key = config.stripe.key;
+  res.locals.paypal_plan = config.paypal.plan;
+  res.locals.paypal_client_id = config.paypal.client_id;
   res.locals.csrf = req.csrfToken();
-  res.render("sign-up");
+  res.render("dashboard/sign-up");
 });
 
 paymentForm.post(parse, csrf, validateEmail, function (req, res, next) {
@@ -101,7 +114,7 @@ paymentForm.post(parse, csrf, validateEmail, function (req, res, next) {
     card,
     email,
     plan: config.stripe.plan,
-    description: "Blot subscription",
+    description: "Blot subscription"
   };
 
   stripe.customers.create(info, function (err, customer) {
@@ -128,10 +141,13 @@ paymentForm.post(parse, csrf, validateEmail, function (req, res, next) {
 });
 
 passwordForm.all(function (req, res, next) {
-  if (!req.session || !req.session.email || !req.session.subscription)
+  if (
+    !req.session ||
+    !req.session.email ||
+    (!req.session.subscription && !req.session.paypal)
+  )
     return res.redirect(req.baseUrl + paymentForm.path);
 
-  res.locals.breadcrumbs = [{ label: "Blot" }, { label: "Sign up" }];
 
   next();
 });
@@ -139,15 +155,16 @@ passwordForm.all(function (req, res, next) {
 passwordForm.get(csrf, function (req, res) {
   res.locals.title = "Sign up";
   res.locals.email = req.session.email;
-  res.locals.subscription = !!req.session.subscription;
+  res.locals.subscription = !!req.session.subscription || !!req.session.paypal;
   res.locals.error = req.query.error;
   res.locals.change_email = req.query.change_email;
   res.locals.csrf = req.csrfToken();
-  res.render("sign-up/password");
+  res.render("dashboard/sign-up/password");
 });
 
 passwordForm.post(parse, csrf, function (req, res, next) {
-  var subscription = req.session.subscription;
+  var subscription = req.session.subscription || {};
+  var paypal = req.session.paypal || {};
   var email = req.body.email;
   var password = req.body.password;
 
@@ -158,40 +175,49 @@ passwordForm.post(parse, csrf, function (req, res, next) {
   User.hashPassword(password, function (err, passwordHash) {
     if (err) return next(err);
 
-    User.create(email, passwordHash, subscription, function (err, user) {
-      if (err) return next(err);
+    User.create(
+      email,
+      passwordHash,
+      subscription,
+      paypal,
+      function (err, user) {
+        if (err) return next(err);
 
-      // The user has changed their email since signing up
-      // TODO: add logging
-      if (req.session.email !== user.email) {
-        stripe.customers.update(
-          subscription.customer,
-          { email: user.email },
-          function () {
-            // TODO: handle this error but it's not
-            // all that important
-          }
-        );
+        // The user has changed their email since signing up
+        // TODO: add logging
+        if (
+          subscription &&
+          subscription.customer &&
+          req.session.email !== user.email
+        ) {
+          stripe.customers.update(
+            subscription.customer,
+            { email: user.email },
+            function () {
+              // TODO: handle this error but it's not
+              // all that important
+            }
+          );
+        }
+
+        delete req.session.email;
+        delete req.session.subscription;
+        delete req.session.paypal;
+
+        // if you change this also change log-in
+        res.cookie("signed_into_blot", "true", {
+          domain: "",
+          path: "/",
+          secure: true,
+          httpOnly: false,
+          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+          sameSite: "Lax"
+        });
+
+        req.session.uid = user.uid;        
+        res.redirect("/sites/account/create-site");
       }
-
-      delete req.session.email;
-      delete req.session.subscription;
-
-      // if you change this also change log-in
-      res.cookie("signed_into_blot", "true", {
-        domain: "",
-        path: "/",
-        secure: true,
-        httpOnly: false,
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        sameSite: "Lax",
-      });
-
-      req.session.uid = user.uid;
-
-      Email.CREATED_BLOG(user.uid);
-      res.redirect("/account/create-blog");
-    });
+    );
   });
 });
 
@@ -205,5 +231,6 @@ signup.use(function (err, req, res, next) {
 
   next();
 });
+
 
 module.exports = signup;

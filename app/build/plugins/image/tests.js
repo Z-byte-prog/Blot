@@ -8,6 +8,7 @@ describe("image", function () {
   var config = require("config");
   var join = require("path").join;
   var crypto = require("crypto");
+  var sharp = require("sharp");
 
   afterEach(function () {
     if (!this.result) return;
@@ -35,6 +36,29 @@ describe("image", function () {
         expect(firstResult).not.toEqual(secondResult);
 
         test.result = secondResult;
+        done();
+      });
+    });
+  });
+
+  it("will preserve the color profile of the image", function (done) {
+    var test = this;
+    var image = "/tests-p3.jpg";
+    var html = '<img src="' + image + '">';
+
+    fs.copySync(__dirname + image, localPath(test.blog.id, image));
+
+    render(test.blog, html, function (err, result) {
+      if (err) return done.fail(err);
+
+      var path = extractCachedImagePaths(test.blog, result)[0];
+
+      sharp(path).metadata(function (err, metadata) {
+        if (err) return done.fail(err);
+
+        expect(metadata.icc).toBeDefined();
+        expect(metadata.icc).toContain('P3'); // Ensure it is preserved
+
         done();
       });
     });
@@ -156,9 +180,9 @@ describe("image", function () {
     });
   });
 
-  function extractCachedImagePaths(blog, html) {
+  function extractCachedImagePaths (blog, html) {
     var paths = [];
-    var $ = cheerio.load(html);
+    var $ = cheerio.load(html, null, false);
 
     $("img").each(function () {
       var src = $(this).attr("src");
@@ -177,7 +201,7 @@ describe("image", function () {
     return paths;
   }
 
-  function verifyCachedImagesExist(imagePaths) {
+  function verifyCachedImagesExist (imagePaths) {
     imagePaths.forEach(function (path) {
       try {
         // Does the cached image exist on disk?
@@ -190,9 +214,9 @@ describe("image", function () {
   }
 
   // Wrapper around dumb API for this plugin
-  function render(blog, html, callback) {
+  function render (blog, html, callback) {
     var options = { blogID: blog.id };
-    var $ = cheerio.load(html);
+    var $ = cheerio.load(html, null, false);
 
     image.render(
       $,

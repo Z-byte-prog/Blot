@@ -16,9 +16,8 @@ var CACHE = config.cache;
 var CONTENT_TYPE = "Content-Type";
 var CACHE_CONTROL = "Cache-Control";
 
-var UglifyJS = require("uglify-js");
-var CleanCSS = require("clean-css");
-var minimize = new CleanCSS();
+const {minifyJS, minifyCSS} = require("./minify");
+const injectScreenshotScript = require("./injectScreenshotScript");
 
 var cacheDuration = "public, max-age=31536000";
 var JS = "application/javascript";
@@ -40,6 +39,15 @@ module.exports = function (req, res, _next) {
     var blogID = blog.id;
     var templateID = req.template.id;
 
+    // We have a special case for Cloudflare
+    // because some of their SSL settings insist on fetching
+    // from the origin server (in this case Blot) over HTTP
+    // which causes mixed-content warnings.
+    var fromCloudflare =
+      Object.keys(req.headers || {})
+        .map((key) => key.trim().toLowerCase())
+        .find((key) => key.startsWith("cf-")) !== undefined;
+
     if (callback) callback = callOnce(callback);
 
     Template.getFullView(blogID, templateID, name, function (err, response) {
@@ -55,6 +63,8 @@ module.exports = function (req, res, _next) {
         return next(err);
       }
 
+      req.log("Loaded view");
+
       var viewLocals = response[0];
       var viewPartials = response[1];
       var missingLocals = response[2];
@@ -67,7 +77,7 @@ module.exports = function (req, res, _next) {
         .and(blog.locals);
 
       extend(res.locals.partials).and(viewPartials);
-
+      
       retrieve(req, missingLocals, function (err, foundLocals) {
         extend(res.locals).and(foundLocals);
 
@@ -78,8 +88,10 @@ module.exports = function (req, res, _next) {
 
           // VIEW IS ALMOST FINISHED
           // ALL PARTRIAL
-          renderLocals(req, res, function (err, req, res) {
+          renderLocals(req, res, async function (err, req, res) {
             if (err) return next(ERROR.BAD_LOCALS());
+
+            req.log("Loaded other locals");
 
             var output;
 
@@ -89,7 +101,6 @@ module.exports = function (req, res, _next) {
             // ?debug=true _AND_ ?json=true to get template locals as JSON
             if (req.query && (req.query.debug || req.query.json)) {
               if (callback) return callback(null, res.locals);
-
               res.set("Cache-Control", "no-cache");
               return res.json(res.locals);
             }
@@ -119,11 +130,7 @@ module.exports = function (req, res, _next) {
 
             // Only cache JavaScript and CSS if the request is not to a preview
             // subdomain and Blot's caching is turned on.
-            if (
-              CACHE &&
-              !req.preview &&
-              (viewType === STYLE || viewType === JS)
-            ) {
+            if (CACHE && !req.preview && (viewType === STYLE || viewType === JS)) {
               res.header(CACHE_CONTROL, cacheDuration);
             }
 
@@ -131,35 +138,39 @@ module.exports = function (req, res, _next) {
             if (
               viewType.indexOf("text/") > -1 &&
               req.protocol === "http" &&
+              fromCloudflare === false &&
               output.indexOf(config.cdn.origin) > -1
-            )
+            ) 
               output = output
                 .split(config.cdn.origin)
                 .join(config.cdn.origin.split("https://").join("http://"));
 
-            // I believe this minification
-            // bullshit locks up the server while it's
-            // doing it's thing. How can we do this in
-            // advance? If it throws an error, the user
-            // probably forgot an equals sign or some bs...
-            try {
-              if (viewType === STYLE && !req.preview)
-                output = minimize.minify(output || "").styles;
-
-              if (viewType === JS && !req.preview)
-                output = UglifyJS.minify(output, { fromString: true }).code;
-            } catch (e) {}
-
-            if (res.headerSent) {
-              console.log(
-                "headerSent about to trip for",
-                req.headers["x-request-id"] && req.headers["x-request-id"],
-                req.protocol + "://" + req.hostname + req.originalUrl
-              );
+            // if the request is for the index page of a preview site,
+            // inject the script to generate a screenshot of the page
+            // on demand
+            if (req.preview && viewType === "text/html" && req.query.screenshot) {
+              output = injectScreenshotScript({output, protocol: req.protocol, hostname: req.hostname, blogID});
             }
 
-            res.header(CONTENT_TYPE, viewType);
-            res.send(output);
+            if (viewType === STYLE && !req.preview) {
+              req.log("Minifying CSS");
+              output = minifyCSS(output);
+              req.log("Minified CSS");
+            }
+              
+            if (viewType === JS && !req.preview) {
+              req.log("Minifying JavaScript");
+              output = await minifyJS(output);
+              req.log("Minified JavaScript");
+            }
+
+            try {
+              req.log("Sending response");
+              res.header(CONTENT_TYPE, viewType);
+              res.send(output);
+            } catch (e) {
+              next(e);
+            }
           });
         });
       });

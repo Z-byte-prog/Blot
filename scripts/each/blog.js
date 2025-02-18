@@ -12,6 +12,11 @@ module.exports = function (doThis, allDone, options) {
   Blog.getAllIDs(function (err, blogIDs) {
     if (err || !blogIDs) throw err || "No";
 
+    if (options.r) {
+      console.log("Reversing the order of the blogs...");
+      blogIDs = blogIDs.reverse();
+    }
+
     if (options.s) {
       options.s = parseInt(options.s);
       console.log("Starting this script with blog which has ID", options.s);
@@ -69,7 +74,7 @@ module.exports = function (doThis, allDone, options) {
             if (err) throw err;
 
             if (!user) {
-              console.error(new Error("No user with uid " + blog.owner));
+              // console.error(new Error("No user with uid " + blog.owner));
               return nextBlog();
             }
 

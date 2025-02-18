@@ -8,7 +8,7 @@ var Entries = require("models/entries");
 var User = require("models/user");
 var colors = require("colors/safe");
 var async = require("async");
-var filter = require("./filter");
+var verifySiteIsOnline = require("./verifySiteIsOnline");
 
 if (require.main === module) {
   main(function (err, sites) {
@@ -22,11 +22,15 @@ if (require.main === module) {
         "https://" + site.host,
         colors.dim("last published", moment(site.lastPublishedPost).fromNow())
       );
-      console.log(
-        colors.dim(
-          `mailto:${site.email}?subject=Link%20to%20you%20on%20Blot's%20homepage%3F&body=Hello%2C%0A%0AI%20was%20wondering%20if%20I%20could%20add%20a%20link%20to%20your%20site%20to%20Blot's%20homepage%3F%20Absolutely%20no%20pressure%20if%20you'd%20rather%20not%2C%20I%20completely%20understand!%0A%0AEither%20way%2C%20please%20let%20me%20know%20if%20you%20have%20any%20questions%2C%20thoughts%2C%20feedback%20etc.%20Thanks%20for%20giving%20Blot%20a%20go.%0A%0ASincerely%2C%20David`
-        )
-      );
+      // console.log(
+      //   colors.dim(
+      //     `mailto:${
+      //       site.email
+      //     }?subject=Link%20to%20you%20on%20Blot's%20homepage%3F&body=${encodeURIComponent(`Hello, I'm updating Blot's homepage and I'm going to add some new featured sites hosted on Blot. Would you mind if I added a link to yours? I completely understand if you'd rather not, so no pressure.
+
+      //     Sincerely, David`)}`
+      //   )
+      // );
     });
 
     process.exit();
@@ -35,11 +39,11 @@ if (require.main === module) {
 
 // We want to be able to check if a candidate is already
 // featured, so transform the existing list into an array
-var featured = require("./featured").map(function (site) {
+var featured = require("./featured").sites.map(function (site) {
   return site.host;
 });
 
-function main(callback) {
+function main (callback) {
   Blog.getAllIDs(function (err, ids) {
     async.map(
       ids,
@@ -56,34 +60,49 @@ function main(callback) {
               next(null, {
                 host: blog.domain,
                 email: user.email,
-                lastPublishedPost: entries[0].dateStamp,
+                lastPublishedPost: entries[0].dateStamp
               });
             });
           });
         });
       },
-      function (err, sites) {
+      async function (err, sites) {
         if (err) return callback(err);
 
         sites = sites.filter(function (site) {
           return site && site.host && featured.indexOf(site.host) === -1;
         });
 
-        console.log(sites.length, "candidates");
-
-        filter(sites, function (err, sites) {
-          if (err) return callback(err);
-
-          console.log(sites.length, "candidates remain post-filter");
-
-          sites.sort(function (a, b) {
-            if (a.lastPublishedPost > b.lastPublishedPost) return 1;
-            if (b.lastPublishedPost > a.lastPublishedPost) return -1;
-            if (a.lastPublishedPost === b.lastPublishedPost) return 0;
-          });
-
-          callback(null, sites);
+        // ensure we're only checking unique sites
+        sites = sites.filter(function (site, index, self) {
+          return (
+            index ===
+            self.findIndex(function (t) {
+              return t.host === site.host;
+            })
+          );
         });
+
+        const filteredSites = [];
+
+        console.log('Checking', sites.length, "candidates");
+
+        for (var i = 0; i < sites.length; i++) {
+          var isOnline = await verifySiteIsOnline(sites[i].host);
+          if (isOnline) {
+            filteredSites.push(sites[i]);
+          }
+        }
+
+        console.log(filteredSites.length, "candidates remain post-filter");
+
+        filteredSites.sort(function (a, b) {
+          if (a.lastPublishedPost > b.lastPublishedPost) return 1;
+          if (b.lastPublishedPost > a.lastPublishedPost) return -1;
+          if (a.lastPublishedPost === b.lastPublishedPost) return 0;
+        });
+
+        callback(null, filteredSites);
       }
     );
   });

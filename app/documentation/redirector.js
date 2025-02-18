@@ -2,26 +2,40 @@ const Express = require("express");
 const redirector = new Express.Router();
 
 const internal = {
-  "/account": "/dashboard/account",
-  "/settings": "/dashboard/settings",
-  "/log-in": "/dashboard/log-in",
-  "/sign-up": "/dashboard/sign-up",
+  "/dashboard": "/sites",
+  "/account": "/sites/account",
+  "/settings": "/sites/settings",
+  "/log-in": "/sites/log-in",
+  "/sign-up": "/sites/sign-up",
   "/notes": "/about/notes",
-  "/news": "/about/news",
+  "/about/news": "/news",
+  "/about/source-code": "/source-code",
   "/help": "/how",
-  "/how/tags": "/how/metadata",
+  "/how/drafts": "/how/posts/drafts",
+  "/how/pages": "/how/posts/pages",
+  "/how/metadata": "/how/posts/metadata",
+  "/how/import": "/how/configure/import",
+  "/how/tags": "/how/posts/metadata",
+  "/how/files/embedding": "/how/formatting/embedding",
+  "/how/files/citations": "/how/formatting/citations",
+  "/how/files/tex": "/how/formatting/tex",
+  "/how/files/wikilinks": "/how/formatting/wikilinks",
+  "/how/files/layout-tags": "/how/formatting/layout-tags",
+  "/how/posts": "/how/files",
   "/about/contact": "/contct",
   "/about/notes/business/unlimited-bandwidth":
     "/about/notes/business/principles",
-  "/about/notes/business/project-management": "/about/notes/business/technique",
+  "/about/notes/business/technique": "/about/notes/business/tools",
+  "/about/notes/programming/technique": "/about/notes/programming/tools",
+  "/about/notes/design/technique": "/about/notes/design/tools",
+  "/about/notes/business/project-management": "/about/notes/business/tools",
   "/about/notes/design/aesthetic": "/about/notes/design/principles",
   "/about/notes/design/irritating-websites": "/about/notes/design/principles",
-  "/updates": "/about/news",
+  "/updates": "/news",
   "/developers/support": "/contact",
   "/source": "/about/source-code",
-  "/metadata": "/how/metadata",
+  "/metadata": "/how/posts/metadata",
   "/publishing": "/how",
-  "/pricing": "/about",
   "/404s": "/how/configure/redirects",
   "/howto": "/how",
   "/support": "/contact",
@@ -29,25 +43,23 @@ const internal = {
   "/templates/essay": "/templates/portfolio",
   "/templates/picture": "/templates/photo",
   "/templates/scrapbook": "/templates/reference",
-  "/templates/developers/guides": "/templates/developers/tutorials",
-  "/templates/developers/reference/blog": "/templates/developers/reference",
-  "/templates/developers/reference/lists": "/templates/developers/reference",
-  "/templates/developers/reference/helper-functions":
-    "/templates/developers/reference",
-  "/templates/developers/reference/entry": "/templates/developers/reference",
-  "/templates/developers/reference/date-tokens":
-    "/templates/developers/reference",
+  "/templates/developers/guides": "/developers/tutorials",
+  "/templates/developers/reference/blog": "/developers/reference",
+  "/templates/developers/reference/lists": "/developers/reference",
+  "/templates/developers/reference/helper-functions": "/developers/reference",
+  "/templates/developers/reference/entry": "/developers/reference",
+  "/templates/developers/reference/date-tokens": "/developers/reference",
   "/templates/developers/rendering-templates":
-    "/templates/developers/tutorials/how-blot-works",
+    "/developers/tutorials/how-blot-works",
   "/templates/developers/how-blot-works":
-    "/templates/developers/tutorials/how-blot-works",
+    "/developers/tutorials/how-blot-works",
   "/about/notes/programming/development-environment":
-    "/templates/developers/tutorials/set-up-development-environment",
+    "/developers/tutorials/set-up-development-environment",
   "/how/templates": "/templates",
-  "/how/dates": "/how/metadata",
-  "/developers/documentation": "/templates/developers",
-  "/templates/developers/tutorials/json-feed":
-    "/templates/developers/tutorials",
+  "/how/dates": "/how/posts/metadata",
+  "/developers/documentation": "/developers",
+  "/templates/developers/tutorials/json-feed": "/developers/tutorials",
+  "/templates/developers": "/developers",
   "/how/guides": "/how/posts",
   "/how/clients": "/how/sync",
   "/how/publishing-with-blot": "/how",
@@ -58,17 +70,16 @@ const internal = {
   "/how/posts/text-and-markdown": "/how/posts/markdown",
   "/how/posts/domain": "/how/configure/domain",
   "/how/posts/comments": "/how/configure/comments",
-  "/how/drafts": "/how",
   "/formatting": "/how/posts",
   "/redirects": "/how/configure/redirects",
-  "/configuring": "/how/configure",
+  "/configuring": "/how/configure"
 };
 
 const external = {
-  "/typeset": "https://typeset.lllllllllllllllll.com/",
+  "/typeset": "https://typeset.lllllllllllllllll.com/"
 };
 
-Object.keys(internal).forEach((from) => {
+Object.keys(internal).forEach(from => {
   redirector.use(from, function (req, res) {
     let to = internal[from];
     let redirect = req.originalUrl.replace(from, to);
@@ -78,7 +89,7 @@ Object.keys(internal).forEach((from) => {
   });
 });
 
-Object.keys(external).forEach((from) => {
+Object.keys(external).forEach(from => {
   redirector.use(from, function (req, res) {
     // By default, res.redirect returns a 302 status
     // code (temporary) rather than 301 (permanent)

@@ -1,5 +1,5 @@
 const config = require("config");
-const redis = require("redis");
+const redis = require("models/redis");
 const client = require("models/client");
 const express = require("express");
 const CHANNEL = "webhook-forwarder";
@@ -8,6 +8,7 @@ const fetch = require("node-fetch");
 const clfdate = require("helper/clfdate");
 const querystring = require("querystring");
 const bodyParser = require("body-parser");
+const { updated } = require("../models/entry/model");
 
 // This app is run on Blot's server in production
 // and relays webhooks to any connected local clients
@@ -15,7 +16,7 @@ const bodyParser = require("body-parser");
 const server = express();
 
 server.get("/connect", function (req, res) {
-  const client = redis.createClient();
+  const client = new redis();
 
   if (req.header("Authorization") !== config.webhooks.secret) {
     return res.status(403).send("Unauthorized");
@@ -26,7 +27,7 @@ server.get("/connect", function (req, res) {
     "X-Accel-Buffering": "no",
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
+    "Connection": "keep-alive"
   });
 
   res.write("\n");
@@ -52,6 +53,15 @@ server.get("/connect", function (req, res) {
   });
 });
 
+server.get("/clients/dropbox/authenticate", (req, res) => {
+  const url =
+    config.protocol +
+    config.webhooks.development_host +
+    "/clients/dropbox/authenticate?" +
+    querystring.stringify(req.query);
+  res.redirect(url);
+});
+
 server.get("/clients/google-drive/authenticate", (req, res) => {
   const url =
     config.protocol +
@@ -71,7 +81,7 @@ server.use(
   bodyParser.raw({
     inflate: true,
     limit: "100kb",
-    type: "application/*",
+    type: "application/*"
   }),
   (req, res) => {
     res.send("OK");
@@ -92,7 +102,7 @@ server.use(
       url: req.url,
       headers,
       method: req.method,
-      body: req.body ? req.body.toString() : "",
+      body: req.body ? req.body.toString() : ""
     };
 
     const messageString = JSON.stringify(message);
@@ -102,9 +112,9 @@ server.use(
   }
 );
 
-function listen({ host }) {
+function listen ({ host }) {
   const url = "https://" + host + "/connect";
-
+  
   // when testing this, replace REMOTE_HOST with 'webhooks.blot.development'
   // and pass this as second argument to new EventSource();
   const options = { headers: { Authorization: config.webhooks.secret } };
@@ -131,27 +141,31 @@ function listen({ host }) {
   stream.onmessage = async function ({ data }) {
     const { method, body, url, headers } = JSON.parse(data);
 
-    console.log(clfdate(), "Webhooks requesting", url);
+    let path = require("url").parse(url).path;
+
+    console.log(clfdate(), "Webhooks requesting url", url);
 
     try {
-      const https = require("https");
-
-      const agent = new https.Agent({
-        rejectUnauthorized: false,
-      });
-
+     
       const options = {
         headers: headers,
         method,
-        agent,
       };
+
+      options.headers["x-forwarded-proto"] = "https";
+      options.headers["x-forwarded-host"] = config.host;
+      options.headers.host = config.host;
 
       if (method !== "HEAD" && method !== "GET") options.body = body;
 
-      await fetch("https://" + config.host + url, options);
+      const localURL = "http://" + config.host + ':' + config.port + path;
+
+      console.log(clfdate(), "Webhooks forwarding to", localURL);
+
+      await fetch(localURL, options);
       // const body = await response.text();
     } catch (e) {
-      console.log(e);
+      console.log(clfdate(), "Webhooks error forwarding request", e);
     }
   };
 }

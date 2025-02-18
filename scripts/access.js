@@ -1,11 +1,11 @@
+
 var Blog = require("models/blog");
 var User = require("models/user");
 var format = require("url").format;
 var config = require("../config");
-var get = require("./get/blog");
 
 if (require.main === module) {
-  get(process.argv[2], function (err, user, blog) {
+  require("./get/blog")(process.argv[2], function (err, user, blog) {
     main((blog && blog.handle) || process.argv[2], function (err, url) {
       if (err) throw err;
       console.log(url);
@@ -14,7 +14,7 @@ if (require.main === module) {
   });
 }
 
-function main(handle, callback) {
+function main (handle, callback) {
   User.getById(handle, function (err, userID) {
     if (err) return callback(err);
 
@@ -39,10 +39,10 @@ function main(handle, callback) {
           var url = format({
             protocol: "https",
             host: config.host,
-            pathname: "/log-in",
+            pathname: "/sites/log-in",
             query: {
-              token: token,
-            },
+              token: token
+            }
           });
 
           callback(null, url);

@@ -11,6 +11,7 @@ var Key = require("./key").url;
 var model = require("./model");
 var Blog = require("models/blog");
 var get = require("./get");
+var debug = require("debug")("blot:entry:set");
 
 //'/style.css', '/script.js', '/feed.rss', '/robots.txt', '/sitemap.xml'
 // are not possible because . is replaced with. ideally check for
@@ -48,19 +49,21 @@ var UID_PERMUTATIONS = 500;
 //   path: '/a.jpg'
 // }));
 
-function Candidates(blog, entry) {
+function Candidates (blog, entry) {
   var candidates = [];
 
+  var format = blog.permalink.isCustom ? blog.permalink.custom : blog.permalink.format;
+  
   // Don't use the permalink format for pages
   // or posts with user specified permalinks.
   if (
     !entry.metadata.permalink &&
-    !entry.metadata.slug &&
     !entry.metadata.link &&
     !entry.metadata.url &&
     !entry.page
   ) {
-    entry.permalink = Permalink(blog.timeZone, blog.permalink.format, entry);
+    entry.permalink = Permalink(blog.timeZone, format, entry);
+    debug("Permalink", entry.permalink);
   }
 
   // The user has specified a permalink in the
@@ -143,7 +146,7 @@ function Candidates(blog, entry) {
   return candidates;
 }
 
-function check(blogID, candidate, entryID, callback) {
+function check (blogID, candidate, entryID, callback) {
   var key = Key(blogID, candidate);
 
   redis.get(key, function (err, existingID) {
@@ -181,12 +184,22 @@ function check(blogID, candidate, entryID, callback) {
 // this needs to return an error if something went wrong
 // and the finalized, stored url to the entry...
 module.exports = function (blogID, entry, callback) {
-  ensure(blogID, "string").and(entry, model).and(callback, "function");
+  ensure(blogID, "string").and(entry, "object").and(callback, "function");
+
+  try {
+    ensure(entry, model);
+  } catch (e) {
+    return callback(e);
+  }
+
+  debug("Setting url for", entry.path);
 
   if (entry.draft || entry.deleted) return callback(null, "");
 
   Blog.get({ id: blogID }, function (err, blog) {
     if (err) return callback(err);
+
+    if (!blog) return callback(new Error("Blog not found"));
 
     // does This cause a memory leak? we sometimes
     // exist before calling all the next functions
@@ -194,6 +207,7 @@ module.exports = function (blogID, entry, callback) {
     async.eachSeries(
       Candidates(blog, entry),
       function (candidate, next) {
+        debug("Checking candidate", candidate);
         check(blogID, candidate, entry.id, function (err, taken) {
           if (err) return callback(err);
 

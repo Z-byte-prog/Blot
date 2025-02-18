@@ -1,13 +1,18 @@
 var titleFromSlug = require("helper/titleFromSlug");
 
 var TITLES = {
-  "how": "How to use Blot",
+  "how": "Documentation",
   "terms": "Terms of use",
   "privacy": "Privacy policy",
-  "sync": "Sync your folder",
-  "configure": "Configure your site",
+  "posts": "Files and posts",
+  "sync": "Sync folder",
+  "org": "Org Mode",
+  "configure": "Set up site",
   "google-drive": "Google Drive",
-  "markdown": "Text and Markdown",
+  "sub-folders": "Sub-folders",
+  "google-docs": "Google Docs",
+  "examples": "Example sites",
+  "markdown": "Markdown",
   "word-documents": "Word Documents",
   "html": "HTML",
   "how-blot-works": "How Blot works",
@@ -15,30 +20,32 @@ var TITLES = {
   "urls": "URL format",
   "hard-stop-start-ec2-instance": "How to stop and start an EC2 instance",
   "who": "Who uses Blot?",
-  "developers": "Developer guide",
+  "developers": "Developers",
   "json-feed": "JSON feed",
   "posts-tagged": "A page with posts with a particular tag",
+  "ifttt": "IFTTT",
+  "soundcloud": "SoundCloud",
+  "youtube": "YouTube",
 };
 
 module.exports = function (req, res, next) {
   res.locals.breadcrumbs = require("url")
     .parse(req.url)
     .pathname.split("/")
+    .filter(slug => slug !== "")
     .map(function (slug, i, arr) {
-      if (!slug) return { label: "Blot", first: true, url: "/" };
       return {
         label: TITLES[slug] || titleFromSlug(slug),
-        url: arr.slice(0, i + 1).join("/"),
-        last: i === arr.length - 1,
+        url: "/" + arr.slice(0, i + 1).join("/"),
+        last: i === arr.length - 1
       };
     });
 
   if (req.url === "/") {
-    res.locals.breadcrumbs = res.locals.breadcrumbs.slice(0, 1);
-    res.locals.breadcrumbs[0].last = true;
+    res.locals.breadcrumbs = [];
   }
 
-  if (res.locals.breadcrumbs.length < 3) res.locals.hidebreadcrumbs = true;
+  if (res.locals.breadcrumbs.length < 2) res.locals.hidebreadcrumbs = true;
 
   res.locals.base = "";
   res.locals.selected = {};

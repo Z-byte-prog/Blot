@@ -1,0 +1,239 @@
+<h1>Updates</h1>
+<!-- <h2>Blot remains an active project.</h2> -->
+<style type="text/css">
+  h2 {
+    font-size: 18px;
+  }
+  label {
+    font-size: 14px;
+    color: var(--light-text-color);
+  }
+
+  /* turn into tooltip */
+  label em {
+    display: none;
+  }
+
+  hr {
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  ol {
+    list-style-type: none;
+  }
+
+  ol {
+    padding: 0.5rem;
+    margin-top: 2.8rem;
+  }
+
+  ol li {
+    margin-bottom: 1em;
+    position: relative;
+  }
+
+ 
+  ol li a {
+    display: block;
+    border: none;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  ol li p {
+    margin: 0;
+  }
+
+  ol li a:hover {
+    box-shadow: none;
+    text-decoration: none;
+  }
+
+  ol li a:active,
+  ol li a:focus {
+    background: none;
+    box-shadow: none;
+  }
+
+  ol li a:hover small {
+    text-decoration: underline;
+    color: var(--accent-color);
+  }
+  ol li small {
+    color: var(--light-text-color);
+  }
+
+  content hr {
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    margin: 2em 0;
+  }
+
+  ol li a:hover {
+    background: none;
+  }
+
+  flex {
+    display: flex;
+  }
+
+  details ul,
+  details ol {
+    padding-left: 1.5em;
+    margin-left: 0;
+  }
+  details {
+    margin: 1em 0;
+    display: block;
+    position: relative;
+    color: inherit;
+  }
+
+  details summary {
+    list-style: none;
+    list-style-type: none;
+
+    display: list-item;
+    touch-action: manipulation;
+    box-sizing: border-box;
+    outline: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+
+    z-index: 1;
+    top: 0;
+
+    padding-right: 2rem;
+    cursor: pointer;
+    background-size: 16px auto;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    transition: color 0.2s;
+  }
+
+  details[open] summary::before {
+    transform: rotate(180deg);
+  }
+
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details summary:before {
+    content: "";
+    transform-box: fill-box;
+    position: absolute;
+    top: 12px;
+    margin-top: -4px;
+    left: 0;
+    width: 10px;
+    height: 6px;
+    transform: rotate(90deg);
+    transition: transform 0.2s ease-out;
+    transform-origin: 50% center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="612" height="612"><path fill="white" d="M604.501 440.509L325.398 134.956c-5.331-5.357-12.423-7.627-19.386-7.27-6.989-.357-14.056 1.913-19.387 7.27L7.499 440.509c-9.999 10.024-9.999 26.298 0 36.323s26.223 10.024 36.222 0l262.293-287.164L568.28 476.832c9.999 10.024 26.222 10.024 36.221 0 9.999-10.023 9.999-26.298 0-36.323z"/></svg>');
+  }
+
+  .todo hr {
+      border: none;
+      border-bottom: 1px solid var(--border-color);
+      margin: 2rem 0;
+      padding: 0;
+    }
+    .todo > * {
+      padding-left: 1.5rem;
+      position: relative;
+    }
+
+    .todo li {
+      position: relative;
+      padding-left: 1.5rem;
+    }
+    .todo ul,
+    .todo ol {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .todo summary + ul {
+      margin-top: 1rem;
+    }
+
+    .todo > p:before,
+    .todo li:before {
+      content: "";
+      width: 6px;
+      position: absolute;
+      top: 8px;
+      left: 0;
+      border-radius: 100%;
+      height: 6px;
+      background: var(--background-color);
+      border: 1px solid var(--medium-text-color);
+      font-size: 0.5em;
+    }
+</style>
+
+<p style="margin-bottom: 0;">
+  Every season we send a summary of what we have done and what we plan to do next. We will deliver the {{nextNewsletter.season}} update {{nextNewsletter.fromNow}}.
+</p>
+
+<form
+  action="/news/sign-up"
+  method="POST"
+  style="margin:0;display: flex; align-items: flex-end;max-width: 580px;border-bottom: 1px solid #eeeeec;padding: 2rem 0;">
+  <p style="margin: 0; flex-basis: 75%">
+    <label for="email">Your email address</label>
+    <input type="text" required id="email" name="email" />
+  </p>
+  <input
+    style="
+      flex-basis: 25%;
+      width: auto;
+      margin: 0;
+      border-radius: 0 4px 4px 0;
+      padding: 0 1em;
+      line-height: 42px;
+      margin-bottom: 2px;
+    "
+    type="submit"
+    value="Subscribe to updates" />
+</form>
+
+<br />
+<br />
+<br />
+<div class="collapse-on-small-screens">
+  
+
+  <section
+    style="
+      flex-basis: 66.666%;
+      padding: 0;
+    ">
+    <h2 style="border-bottom: 0; margin-bottom: 0;margin-top: 0; padding-top: 0;padding-bottom: 0;">To do</h2>
+    <div class="todo" style="font-size: 16px">{{{todo}}}</div>
+  </section>
+
+  <section style="flex-basis: 33.333%; flex-shrink: 0;">
+    <h2 style="border-bottom: 0; margin-bottom: 0;margin-top: 0; padding-top: 0; padding-bottom: 0;">Done</h2>
+    <ol class="path" style="font-size: 16px">
+      {{#days}}
+          {{#commits}}
+          <li>
+            <a
+              rel="nofollow"
+              href="https://github.com/davidmerfield/Blot/commit/{{ hash }}">
+              {{ message }}
+            </a>
+          </li>
+          {{/commits}}
+          <li class="no-lab">{{day}}</li>
+      {{/days}}
+    </ol>
+  </section>
+</flex>

@@ -1,111 +1,12 @@
 const config = require("config");
 const Express = require("express");
-const documentation = new Express();
-const hogan = require("helper/express-mustache");
-const Cache = require("helper/express-disk-cache");
-const cache = new Cache(config.cache_directory, { minify: true, gzip: true });
-const fs = require("fs-extra");
 const redirector = require("./redirector");
-const trace = require("helper/trace");
-
-const root = require("helper/rootDir");
+const Email = require("helper/email");
 const { join } = require("path");
-const VIEW_DIRECTORY = join(root, "app/views");
 
-// Register the engine we will use to
-// render the views.
-documentation.set("view engine", "html");
-documentation.set("views", VIEW_DIRECTORY);
-documentation.engine("html", hogan);
-documentation.disable("x-powered-by");
+const documentation = Express.Router();
 
-// .on("add", function (path) {
-// })
-// .on("ready", function () {
-//   walked = true;
-// });
-
-documentation.set("transformers", [
-  require("./tools/typeset"),
-  require("./tools/anchor-links"),
-  require("./tools/tex"),
-  require("./tools/finder").html_parser,
-]);
-
-documentation.set("etag", false); // turn off etags for responses
-
-if (config.cache === false) {
-  // During development we want views to reload as we edit
-  documentation.disable("view cache");
-} else {
-  documentation.enable("view cache");
-}
-
-// This will store responses to disk for NGINX to serve
-documentation.use(cache);
-
-const { plan } = config.stripe;
-
-documentation.locals.layout = "partials/layout";
-documentation.locals.ip = config.ip;
-documentation.locals.date = require("./dates.js");
-documentation.locals.price = "$" + plan.split("_").pop();
-documentation.locals.interval = plan.startsWith("monthly") ? "month" : "year";
-
-let cacheID = Date.now();
-
-documentation.locals.cdn = () => (text, render) =>
-  `${config.cdn.origin}/documentation/${cacheID}${render(text)}`;
-
-if (config.environment === "development") {
-  const chokidar = require("chokidar");
-  const watcher = chokidar.watch(VIEW_DIRECTORY, { cwd: VIEW_DIRECTORY });
-  const insecureRequest = require("./tools/insecure-request");
-
-  // Flags to prevent locking up the server by doing this too many times
-  let flushing = false;
-  let again = false;
-
-  watcher.on("change", async function flush(path) {
-    if (flushing) {
-      again = true;
-      return;
-    }
-
-    flushing = true;
-
-    cache.flush({ host: config.host }, (err) => console.log(err));
-    cacheID = Date.now();
-
-    insecureRequest(
-      `https://${config.host}/cdn/documentation/${cacheID}/style.min.css`
-    );
-    insecureRequest(
-      `https://${config.host}/cdn/documentation/${cacheID}/documentation.min.js`
-    );
-
-    let urlPath;
-
-    if (path.endsWith(".html")) {
-      urlPath = "/" + path.slice(0, -".html".length);
-      if (urlPath.endsWith("index"))
-        urlPath = urlPath.slice(0, -"index".length);
-    }
-
-    if (urlPath) {
-      const url = `https://${config.host}${urlPath}`;
-
-      insecureRequest(url);
-    }
-
-    flushing = false;
-
-    if (again) {
-      again = false;
-      flush();
-    }
-  });
-}
+const VIEW_DIRECTORY = config.views_directory;
 
 documentation.get(["/how/format/*"], function (req, res, next) {
   res.locals["show-on-this-page"] = true;
@@ -116,7 +17,7 @@ const files = [
   "/favicon-180x180.png",
   "/favicon-32x32.png",
   "/favicon-16x16.png",
-  "/favicon.ico",
+  "/favicon.ico"
 ];
 
 for (const path of files) {
@@ -125,10 +26,19 @@ for (const path of files) {
       lastModified: false, // do not send Last-Modified header
       maxAge: 86400000, // cache forever
       acceptRanges: false, // do not allow ranged requests
-      immutable: true, // the file will not change
+      immutable: true // the file will not change
     })
   );
 }
+
+// serve the VIEW_DIRECTORY as static files
+documentation.use(
+  Express.static(VIEW_DIRECTORY, {
+    index: false, // Without 'index: false' this will server the index.html files inside
+    redirect: false, // Without 'redirect: false' this will redirect URLs to existent directories
+    maxAge: 86400000 // cache forever
+  })
+);
 
 const directories = ["/fonts", "/css", "/images", "/js", "/videos"];
 
@@ -138,7 +48,7 @@ for (const path of directories) {
     Express.static(VIEW_DIRECTORY + path, {
       index: false, // Without 'index: false' this will server the index.html files inside
       redirect: false, // Without 'redirect: false' this will redirect URLs to existent directories
-      maxAge: 86400000,
+      maxAge: 86400000 // cache forever
     })
   );
 }
@@ -160,42 +70,61 @@ documentation.get(
 
 // Adds a handy 'edit this page' link
 documentation.use(
-  ["/how", "/templates", "/about"],
+  ["/how", "/about"],
   require("./tools/determine-source")
 );
 
 documentation.use(require("./selected"));
 
+documentation.get("/", require("./templates.js"), function (req, res, next) {
+  res.locals.title = "Blot";
+  res.locals.description = "Turns a folder into a website";
+  // otherwise the <title> of the page is 'Blot - Blot'
+  res.locals.hide_title_suffix = true;
+  next();
+});
+
+documentation.post(['/support', '/contact', '/feedback'],
+  Express.urlencoded({ extended: true }),
+ (req, res) => {
+  const { email, message } = req.body;
+  if (!message) return res.status(400).send('Message is required');
+  Email.SUPPORT(null, { email, message, replyTo: email });
+  res.send('OK');
+});
+
+documentation.get("/examples", require("./featured"));
+
+documentation.get("/templates",  require("./templates.js"));
+
+documentation.get("/templates/for-:type",  require("./templates.js"), (req, res, next) => {
+  // fix the label of the last breadcrumb from 'For blog' to 'Blog'
+  res.locals.breadcrumbs[res.locals.breadcrumbs.length - 1].label = req.params.type[0].toUpperCase() + req.params.type.slice(1);
+  res.render("templates");
+});
+
 documentation.get(
-  "/",
-  require("./tools/git-commits"),
-  require("./featured"),
-  function (req, res, next) {
-    res.locals.layout = "partials/layout-index";
-    res.locals.title = "Blot – A blogging platform with no interface.";
-    res.locals.description =
-      "Turns a folder into a blog automatically. Use your favorite text-editor to write. Text and Markdown files, Word Documents, images, bookmarks and HTML in your folder become blog posts.";
-    // otherwise the <title> of the page is 'Blot - Blot'
-    res.locals.hide_title_suffix = true;
-    next();
+  "/templates/:template",
+  require("./templates.js"),
+  (req, res, next) => {
+    if (!res.locals.template) return next();
+    res.render("templates/template");
   }
 );
 
-documentation.use("/fonts", require("./fonts"));
+documentation.use("/templates/fonts", require("./fonts"));
+
+documentation.use("/developers", require("./developers"));
 
 documentation.get("/sitemap.xml", require("./sitemap"));
 
-documentation.use("/templates/developers", require("./developers"));
+documentation.use("/about", require("./about.js"));
 
-documentation.use("/about/notes", require("./notes"));
-
-documentation.use("/templates", require("./templates"));
-
-documentation.use("/about/news", require("./news"));
+documentation.use("/news", require("./news"));
 
 documentation.use("/questions", require("./questions"));
 
-function trimLeadingAndTrailingSlash(str) {
+function trimLeadingAndTrailingSlash (str) {
   if (!str) return str;
   if (str[0] === "/") str = str.slice(1);
   if (str[str.length - 1] === "/") str = str.slice(0, -1);

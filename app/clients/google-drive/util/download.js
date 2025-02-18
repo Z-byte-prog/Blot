@@ -9,7 +9,7 @@ const computeMd5Checksum = require("../util/md5Checksum");
 
 module.exports = async (blogID, drive, path, file) => {
   return new Promise(async function (resolve, reject) {
-    const pathOnBlot = localPath(blogID, path);
+    let pathOnBlot = localPath(blogID, path);
     const tempPath = join(tempDir, guid());
     const { id, md5Checksum, mimeType, modifiedTime } = file;
     try {
@@ -38,6 +38,7 @@ module.exports = async (blogID, drive, path, file) => {
       debug("getting file from Drive");
       let data;
 
+      // if the file is a google doc, then add the gdoc extension to pathOnBlot
       if (mimeType === "application/vnd.google-apps.document") {
         const res = await drive.files.export(
           {

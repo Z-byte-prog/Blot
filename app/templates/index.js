@@ -14,7 +14,13 @@ var TEMPLATES_DIRECTORY = require("path").resolve(__dirname + "/latest");
 var PAST_TEMPLATES_DIRECTORY = require("path").resolve(__dirname + "/past");
 var TEMPLATES_OWNER = "SITE";
 
-var DEFAULT_FONT = require("blog/static/fonts")
+const redis = require("models/redis");
+
+var HIGHLIGHTER_THEMES = require("blog/static/syntax-highlighter");
+
+const fonts = require("blog/static/fonts");
+
+var DEFAULT_FONT = fonts
   .filter((font) => font.name === "System sans-serif")
   .map((font) => {
     font.styles = Mustache.render(font.styles, {
@@ -24,7 +30,8 @@ var DEFAULT_FONT = require("blog/static/fonts")
     });
     return font;
   })[0];
-var DEFAULT_MONO_FONT = require("blog/static/fonts")
+
+var DEFAULT_MONO_FONT = fonts
   .filter((font) => font.name === "System mono")
   .map((font) => {
     font.styles = Mustache.render(font.styles, {
@@ -33,18 +40,28 @@ var DEFAULT_MONO_FONT = require("blog/static/fonts")
       },
     });
     return font;
-  })[0];  
+  })[0];
 
 if (require.main === module) {
-  const watch = config.environment === "development";
+  // if this script is run directly in the terminal
+  // in the development environment without the flag
+  // --no-watch, we want to watch the templates directory for changes
+  // and rebuild the templates when they change.
+  let watch =
+    config.environment === "development" &&
+    !process.argv.includes("--no-watch");
+
+  console.log("Building templates... watch=" + watch);
   main({ watch }, function (err) {
     if (err) throw err;
+    console.log("Done building templates.");
     if (!watch) process.exit();
   });
 
   // Rebuilds templates when we load new states
   // using scripts/state/info.js
-  let client = require("redis").createClient();
+  let redis = require("models/redis");
+  let client = new redis();
   client.subscribe("templates:rebuild");
   client.on("message", function () {
     main({}, function () {});
@@ -66,6 +83,17 @@ function main(options, callback) {
           debug("Watching templates directory for changes");
           watch(TEMPLATES_DIRECTORY);
           watch(PAST_TEMPLATES_DIRECTORY);
+
+          // Rebuilds templates when we load new states
+          // using scripts/state/info.js
+          const templateClient = new redis();
+
+          templateClient.subscribe("templates:rebuild");
+
+          templateClient.on("message", function () {
+            main({}, function () {});
+          });
+
           callback(null);
         } else {
           callback(null);
@@ -129,11 +157,28 @@ function build(directory, callback) {
     );
   }
 
+  if (template.locals.font !== undefined) {
+    template.locals.font = _.merge(
+      _.cloneDeep(DEFAULT_FONT),
+      template.locals.font
+    );
+  }
+
   if (template.locals.navigation_font !== undefined) {
     template.locals.navigation_font = _.merge(
       _.cloneDeep(DEFAULT_FONT),
       template.locals.navigation_font
     );
+  }
+
+  if (template.locals.syntax_highlighter !== undefined) {
+    template.locals.syntax_highlighter = {
+      ...HIGHLIGHTER_THEMES.find(
+        ({ id }) =>
+          id ===
+          (template.locals.syntax_highlighter.id || "stackoverflow-light")
+      ),
+    };
   }
 
   if (template.locals.coding_font !== undefined) {
@@ -142,6 +187,14 @@ function build(directory, callback) {
       template.locals.coding_font
     );
   }
+
+  if (template.locals.syntax_highlighter_font !== undefined) {
+    template.locals.syntax_highlighter_font = _.merge(
+      _.cloneDeep(DEFAULT_MONO_FONT),
+      template.locals.syntax_highlighter_font
+    );
+  }
+
   Template.drop(TEMPLATES_OWNER, basename(directory), function () {
     Template.create(TEMPLATES_OWNER, name, template, function (err) {
       if (err) return callback(err);
@@ -155,42 +208,14 @@ function build(directory, callback) {
           if (!isPublic || config.environment !== "development")
             return callback();
 
-          mirror(id, callback);
+          // in development, we want to reset any versions of the template
+          // otherwise it seems local changes are not reflected
+          removeOldVersionFromTestBlogs(id, function (err) {
+            callback();
+          });
         });
       });
     });
-  });
-}
-
-function mirror(id, callback) {
-  Blog.getAllIDs(function (err, ids) {
-    if (err) return callback(err);
-    async.eachSeries(
-      ids,
-      function (blogID, next) {
-        let mirrorID = blogID + ":mirror-of-" + id.slice(id.indexOf(":") + 1);
-        Template.getMetadata(mirrorID, function (err, oldMirror) {
-          Template.drop(
-            blogID,
-            "mirror-of-" + id.slice(id.indexOf(":") + 1),
-            function (err) {
-              var template = {
-                isPublic: false,
-                cloneFrom: id,
-                name: "Mirror of " + id.slice(id.indexOf(":") + 1),
-                slug: "mirror-of-" + id.slice(id.indexOf(":") + 1),
-              };
-
-              for (const local in template.locals)
-                template[local] = oldMirror.locals[local];
-
-              Template.create(blogID, template.name, template, next);
-            }
-          );
-        });
-      },
-      callback
-    );
   });
 }
 
@@ -298,7 +323,7 @@ function watch(directory) {
 
   // When chokidar first crawls a directory to watch
   // it fires 'add' events for every file it finds.
-  // We watch until its crawled everything 'ready' 
+  // We watch until its crawled everything 'ready'
   // in order to actually listen to new changes.
   let ready = false;
 
@@ -308,7 +333,6 @@ function watch(directory) {
       ready = true;
     })
     .on("all", (event, path) => {
-
       if (!ready) return;
 
       if (!path) return;
@@ -357,6 +381,44 @@ function emptyCacheForBlogsUsing(templateID, callback) {
               "flushed for",
               blog.handle + " (" + blog.id + ")"
             );
+            next();
+          });
+        });
+      },
+      callback
+    );
+  });
+}
+
+function removeOldVersionFromTestBlogs(templateID, callback) {
+  // If we're not in development, we don't want to remove the template from any blogs
+  if (config.environment !== "development") return callback();
+
+  Blog.getAllIDs(function (err, ids) {
+    if (err) return callback(err);
+    async.eachSeries(
+      ids,
+      function (blogID, next) {
+        Template.getTemplateList(blogID, function (err, templates) {
+          const TemplateToRemove = templates.find(function (template) {
+            return (
+              template.cloneFrom === templateID &&
+              template.owner === blogID &&
+              template.name.toLowerCase() ===
+                templateID.split(":")[1].toLowerCase()
+            );
+          });
+
+          if (!TemplateToRemove) {
+            console.log("No template to remove for", blogID, templateID);
+            return next();
+          }
+
+          console.log("Removing", TemplateToRemove.id);
+
+          Template.drop(blogID, TemplateToRemove.slug, function (err) {
+            if (err) return next(err);
+
             next();
           });
         });

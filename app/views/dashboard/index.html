@@ -1,35 +1,68 @@
-<div style="min-height: 75vh;display: flex;flex-direction: column;">
+<form class="create-site-button" action="/sites/account/create-site" method="POST">
+	<input type="hidden" name="timeZone" value="">
+	<input type="hidden" name="_csrf" value="{{csrftoken}}">
+	<input type="hidden" name="title" value="Untitled site">
+	<button>
+		<span class="icon-plus"></span>&thinsp; Create site
+	</button>
+</form>
 
-<div style="flex-grow: 1">  
-{{> dropdown}}
+<div class="sites-list-container">
+	<div class="sites">
+		{{#blogs}}
+		<div class="site">
+			<a href="/sites/{{handle}}" class="blog-link">
+				<span class="text-info">
+					<span class="title truncate">{{pretty.label}}</span>
+					<span class="truncate url">{{pretty.url}}</span>
+				</span>
+			</a>
+			<div style="width: 60px;height:40px;    position: absolute;
+			height: 40px;
+			width: 60px;
+			top: 10px;
+			left: 1em;
+			margin: 4px 0 10px;
+		">
+				<div class="site-preview" data-url="{{{previewURL}}}" data-cache-id="{{cacheID}}"></div>
+			</div>
+		</div>
+		{{/blogs}}
+	</div>
 
-<br><br>
-</div>
+	<div>
+		<form class="foot" action="/sites/account/log-out" method="post" style="float:right;background:none;padding:0 0 0;font-size: 14px;color: var(--border-color);">
+			<button type="submit" class="logout">
+				Log out &rarr;
+			</button>
+		</form>
 
-<div>
-<span style="display:block;padding:11px 20px;border-bottom: 1px solid rgba(0,0,0,0.05);font-weight: 600;color: #000">Your account</span>
-<a class="line" href="/dashboard/account/email">
-	<span class="label">Email</span>
-	<span class="center">{{user.email}}</span>
-  <span class="right">Edit</span>
-</a>
+		<span style="padding:11px 0;display:block;font-weight: 400;color: var(--light-text-color);">Account</span>
+	</div>
 
-{{#user.hasPassword}}
-<a class="line" href="/dashboard/account/password">
-	<span class="label">Password</span>
-	<span class="center"><span class="link">Change your password</span></span>
-</a>
-{{/user.hasPassword}} {{^user.hasPassword}}
-<a class="line" href="/dashboard/account/password/set">
-	<span class="label">Password</span>
-	<span class="center"><span class="link">Set your password</span></span>
-</a>
-{{/user.hasPassword}}
+	<div style="border-radius: 4px;border:1px solid var(--border-color);overflow: hidden;">
+		<a class="line" href="/sites/account/email">
+			<span class="label">Email</span>
+			<span class="center">{{user.email}}</span>
+			<span class="right">Edit</span>
+		</a>
 
-<a class="line" href="/dashboard/account/subscription" style="border-bottom: none;">
-	<span class="label">Subscription</span>
+		{{#user.hasPassword}}
+		<a class="line" href="/sites/account/password">
+			<span class="label">Password</span>
+			<span class="center"><span class="link">Change password</span></span>
+		</a>
+		{{/user.hasPassword}}
+		{{^user.hasPassword}}
+		<a class="line" href="/sites/account/password/set">
+			<span class="label">Password</span>
+			<span class="center"><span class="link">Set password</span></span>
+		</a>
+		{{/user.hasPassword}}
 
-	<span class="center"><span class="link">Manage your subscription</span></span>
-</a>
-</div>
+		<a class="line" href="/sites/account/subscription" style="border-bottom: none;">
+			<span class="label">Subscription</span>
+			<span class="center"><span class="link">Manage subscription</span></span>
+		</a>
+	</div>
 </div>

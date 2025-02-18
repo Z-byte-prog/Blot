@@ -4,8 +4,6 @@ var url = require("./url");
 var protocol = "https";
 var punycode = require("helper/punycode");
 
-if (config.environment === "development") protocol = "http";
-
 module.exports = function extend(blog) {
   var pages = [];
 
@@ -39,7 +37,8 @@ module.exports = function extend(blog) {
 
   blog.feedURL = "/feed.rss";
   blog.url = protocol + "://" + blog.handle + "." + config.host;
-
+  
+  blog.previewURL = `https://preview-of-${blog.handle}.${config.host}`;
   blog.pretty.url = blog.handle + "." + config.host;
   blog.pretty.label = blog.title || blog.pretty.url;
 
@@ -47,13 +46,6 @@ module.exports = function extend(blog) {
     blog.url = protocol + "://" + blog.domain;
     blog.pretty.url = punycode.toUnicode(blog.domain);
     blog.pretty.domain = punycode.toUnicode(blog.domain);
-  }
-
-  // Based on the code in app/local.js this overwrites
-  // the blog's URL when the simple local server is run
-  if (config.host === 'localhost') {
-    blog.url = 'http://localhost:8081';
-    blog.pretty.url = 'localhost:8081';
   }
 
   blog.blogURL = protocol + "://" + blog.handle + "." + config.host;
